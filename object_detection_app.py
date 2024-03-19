@@ -19,8 +19,8 @@ def load_model(weights=DEFAULT_WEIGHTS, categories=DEFAULT_CATEGORIES):
 
 # Function to make prediction given an image and model
 def make_prediction(img, model):
-    img_preprocess = weights.transforms()(img)  # Preprocess image
-    prediction = model(img_preprocess.unsqueeze(0))[0]  # Perform prediction
+    img_preprocess = model.transform_input(img)  # Preprocess image
+    prediction = model(img_preprocess)[0]  # Perform prediction
     prediction["labels"] = [categories[label] for label in prediction["labels"]]
     return prediction
 
@@ -59,9 +59,6 @@ if model_weights:
 
     # Threshold adjustment
     threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, step=0.05)
-
-    # Custom categories
-    custom_categories = st.sidebar.text_input("Custom Categories (comma-separated)", "")
 
     # Image upload
     upload = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
