@@ -6,44 +6,73 @@ import torch
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.utils import draw_bounding_boxes
 
-weights = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
-categories = weights.meta["categories"] ## ['__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A', 'stopsign',]
-img_preprocess = weights.transforms() ## Scales values from 0-255 range to 0-1 range.
+# Load default weights and categories
+DEFAULT_WEIGHTS = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
+DEFAULT_CATEGORIES = DEFAULT_WEIGHTS.meta["categories"]
 
+# Function to load model with optional weights and categories
 @st.cache
-def load_model():
+def load_model(weights=DEFAULT_WEIGHTS, categories=DEFAULT_CATEGORIES):
     model = fasterrcnn_resnet50_fpn_v2(weights=weights, box_score_thresh=0.5)
-    model.eval() ## Setting Model for Evaluation/Prediction   
-    return model
+    model.eval()  # Set model for evaluation
+    return model, categories
 
-model = load_model()
-
-def make_prediction(img): 
-    img_processed = img_preprocess(img) ## (3,500,500) 
-    prediction = model(img_processed.unsqueeze(0)) # (1,3,500,500)
-    prediction = prediction[0]                       ## Dictionary with keys "boxes", "labels", "scores".
+# Function to make prediction given an image and model
+def make_prediction(img, model):
+    img_preprocess = weights.transforms()(img)  # Preprocess image
+    prediction = model(img_preprocess.unsqueeze(0))[0]  # Perform prediction
     prediction["labels"] = [categories[label] for label in prediction["labels"]]
     return prediction
 
-def create_image_with_bboxes(img, prediction): ## Adds Bounding Boxes around original Image.
-    img_tensor = torch.tensor(img) ## Transpose
-    img_with_bboxes = draw_bounding_boxes(img_tensor, boxes=prediction["boxes"], labels=prediction["labels"],
-                                          colors=["red" if label=="person" else "green" for label in prediction["labels"]] , width=2)
-    img_with_bboxes_np = img_with_bboxes.detach().numpy().transpose(1,2,0) ### (3,W,H) -> (W,H,3), Channel first to channel last.
+# Function to create image with bounding boxes and labels
+def create_image_with_bboxes(img, prediction):
+    img_tensor = torch.tensor(img.transpose(2, 0, 1))  # Transpose image tensor
+    img_with_bboxes = draw_bounding_boxes(img_tensor, boxes=prediction["boxes"],
+                                          labels=prediction["labels"], width=2)
+    img_with_bboxes_np = img_with_bboxes.detach().numpy().transpose(1, 2, 0)
     return img_with_bboxes_np
 
-## Dashboard
-st.title("Object Detector :tea: :coffee:")
-upload = st.file_uploader(label="Upload Image Here:", type=["png", "jpg", "jpeg"])
+# Function to display detection results
+def display_results(image, prediction):
+    st.image(image, use_column_width=True)
+    st.header("Detection Results")
+    if prediction["labels"]:
+        st.write(prediction["labels"])
+    else:
+        st.write("No objects detected.")
 
-if upload:
-    img = Image.open(upload)
+# Dashboard
+st.title("Object Detector")
 
-    prediction = make_prediction(img) ## Dictionary
-    img_with_bbox = create_image_with_bboxes(np.array(img).transpose(2,0,1), prediction) ## (W,H,3) -> (3,W,H)
+# Model selection
+model_weights = st.sidebar.selectbox("Select Model Weights", [DEFAULT_WEIGHTS, "Custom"])
+if model_weights == "Custom":
+    # Allow user to upload custom weights file
+    custom_weights_file = st.sidebar.file_uploader("Upload Custom Weights File", type=["pt"])
+    if custom_weights_file is not None:
+        model_weights = custom_weights_file
 
-    st.image(img_with_bbox, use_column_width=True)
+# Load model
+if model_weights:
+    model, categories = load_model(model_weights)
+    st.sidebar.write("Model loaded successfully.")
 
-    del prediction["boxes"]
-    st.header("Predicted Probabilities")
-    st.write(prediction)
+    # Threshold adjustment
+    threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, step=0.05)
+
+    # Custom categories
+    custom_categories = st.sidebar.text_input("Custom Categories (comma-separated)", "")
+
+    # Image upload
+    upload = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+
+    if upload is not None:
+        # Process uploaded image
+        img = Image.open(upload)
+
+        # Make prediction
+        prediction = make_prediction(np.array(img), model)
+        filtered_prediction = {k: v for k, v in prediction.items() if k != "boxes" and v}
+
+        # Display detection results
+        display_results(img, filtered_prediction)
