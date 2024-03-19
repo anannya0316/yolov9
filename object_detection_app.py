@@ -1,9 +1,9 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw
 import numpy as np
 
 import torch
-from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.transforms import functional as F
 
 # Load pre-trained model
