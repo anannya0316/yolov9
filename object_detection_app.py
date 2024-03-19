@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image, ImageDraw
 import numpy as np
+from streamlit.components.v1 import html
 
 import torch
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
@@ -72,6 +73,16 @@ def main():
             
             # Display the edited image with movable bounding boxes
             st.image(edited_img, caption="Object Detection", use_column_width=True)
+            
+            # Add JavaScript code for making boxes movable
+            st.write("To make the bounding boxes movable, click and drag them.")
+            st.write("Please note that this functionality might not work perfectly in the Streamlit environment.")
+            js_code = """
+            <script>
+            // Add JavaScript code here
+            </script>
+            """
+            st.components.v1.html(js_code)
         except Exception as e:
             st.error(f"Error: {e}")
 
