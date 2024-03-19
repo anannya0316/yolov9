@@ -3,73 +3,55 @@ from PIL import Image
 import numpy as np
 
 import torch
-from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
-from torchvision.utils import draw_bounding_boxes
+from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
+from torchvision.transforms import functional as F
 
-# Load default weights and categories
-DEFAULT_WEIGHTS = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
-DEFAULT_CATEGORIES = DEFAULT_WEIGHTS.meta["categories"]
+# Load pre-trained model
+@st.cache(allow_output_mutation=True)
+def load_model():
+    model = fasterrcnn_resnet50_fpn(pretrained=True)
+    return model
 
-# Function to load model with optional weights and categories
-@st.cache
-def load_model(weights=DEFAULT_WEIGHTS, categories=DEFAULT_CATEGORIES):
-    model = fasterrcnn_resnet50_fpn_v2(weights=weights, box_score_thresh=0.5)
-    model.eval()  # Set model for evaluation
-    return model, categories
+model = load_model()
+model.eval()
 
-# Function to make prediction given an image and model
+# Function to make prediction
 def make_prediction(img, model):
-    img_preprocess = model.transform_input(img)  # Preprocess image
-    prediction = model(img_preprocess)[0]  # Perform prediction
-    prediction["labels"] = [categories[label] for label in prediction["labels"]]
-    return prediction
+    img = F.to_tensor(img).unsqueeze(0)
+    with torch.no_grad():
+        prediction = model(img)
+    return prediction[0]
 
-# Function to create image with bounding boxes and labels
-def create_image_with_bboxes(img, prediction):
-    img_tensor = torch.tensor(img.transpose(2, 0, 1))  # Transpose image tensor
-    img_with_bboxes = draw_bounding_boxes(img_tensor, boxes=prediction["boxes"],
-                                          labels=prediction["labels"], width=2)
-    img_with_bboxes_np = img_with_bboxes.detach().numpy().transpose(1, 2, 0)
-    return img_with_bboxes_np
+# Function to display prediction
+def display_prediction(img, prediction):
+    boxes = prediction["boxes"].cpu().numpy().astype(int)
+    labels = prediction["labels"].cpu().numpy()
+    scores = prediction["scores"].cpu().numpy()
 
-# Function to display detection results
-def display_results(image, prediction):
-    st.image(image, use_column_width=True)
-    st.header("Detection Results")
-    if prediction["labels"]:
-        st.write(prediction["labels"])
-    else:
-        st.write("No objects detected.")
+    for box, label, score in zip(boxes, labels, scores):
+        if score > 0.5:  # Adjust confidence threshold as needed
+            box = box.astype(np.int32)
+            img = Image.fromarray(img)
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([(box[0], box[1]), (box[2], box[3])], outline="red", width=3)
+            draw.text((box[0], box[1]), f"{label} ({score:.2f})", fill="red")
+            del draw
+    st.image(img, caption="Object Detection", use_column_width=True)
 
-# Dashboard
-st.title("Object Detector")
+# Main function
+def main():
+    st.title("Object Detection")
 
-# Model selection
-model_weights = st.sidebar.selectbox("Select Model Weights", [DEFAULT_WEIGHTS, "Custom"])
-if model_weights == "Custom":
-    # Allow user to upload custom weights file
-    custom_weights_file = st.sidebar.file_uploader("Upload Custom Weights File", type=["pt"])
-    if custom_weights_file is not None:
-        model_weights = custom_weights_file
+    uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-# Load model
-if model_weights:
-    model, categories = load_model(model_weights)
-    st.sidebar.write("Model loaded successfully.")
+    if uploaded_image is not None:
+        img = Image.open(uploaded_image)
+        st.image(img, caption="Uploaded Image", use_column_width=True)
+        st.write("")
+        st.write("Detecting objects...")
 
-    # Threshold adjustment
-    threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, step=0.05)
+        prediction = make_prediction(img, model)
+        display_prediction(np.array(img), prediction)
 
-    # Image upload
-    upload = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
-
-    if upload is not None:
-        # Process uploaded image
-        img = Image.open(upload)
-
-        # Make prediction
-        prediction = make_prediction(np.array(img), model)
-        filtered_prediction = {k: v for k, v in prediction.items() if k != "boxes" and v}
-
-        # Display detection results
-        display_results(img, filtered_prediction)
+if __name__ == "__main__":
+    main()
