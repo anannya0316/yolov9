@@ -15,6 +15,21 @@ def load_model():
 model = load_model()
 model.eval()
 
+# Define COCO labels
+COCO_INSTANCE_CATEGORY_NAMES = [
+    '__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+    'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A', 'stop sign',
+    'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant',
+    'bear', 'zebra', 'giraffe', 'N/A', 'backpack', 'umbrella', 'N/A', 'N/A', 'handbag',
+    'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat',
+    'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'N/A', 'wine glass',
+    'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli',
+    'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+    'N/A', 'dining table', 'N/A', 'N/A', 'toilet', 'N/A', 'tv', 'laptop', 'mouse', 'remote',
+    'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'N/A',
+    'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+]
+
 # Function to make prediction
 def make_prediction(img, model):
     img = F.to_tensor(img).unsqueeze(0)
@@ -34,7 +49,8 @@ def display_prediction(img, prediction):
         if score > 0.5:  # Adjust confidence threshold as needed
             box = box.astype(np.int32)
             draw.rectangle([(box[0], box[1]), (box[2], box[3])], outline="red", width=3)
-            draw.text((box[0], box[1]), f"{label} ({score:.2f})", fill="red")
+            label_text = COCO_INSTANCE_CATEGORY_NAMES[label]
+            draw.text((box[0], box[1]), f"{label_text} ({score:.2f})", fill="red")
     del draw
     st.image(img, caption="Object Detection", use_column_width=True)
 
